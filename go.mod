@@ -1,4 +1,4 @@
-module github.com/learnitall/gobenchmark
+module gobench
 
 go 1.17
 
