@@ -3,7 +3,7 @@ package cmd
 import (
 	"os"
 
-	"gobench/define"
+	"github.com/learnitall/gobench/define"
 
 	"github.com/spf13/cobra"
 )
