@@ -3,13 +3,10 @@ package cmd
 import (
 	"os"
 
+	"gobench/define"
+
 	"github.com/spf13/cobra"
 )
-
-var Verbose bool
-var RunID string
-var ElsaticsearchURL string
-var ElasticsearchIndex string
 
 // runCmd represents the run command
 var runCmd = &cobra.Command{
@@ -26,9 +23,9 @@ benchmark which can be executed and has its own options.`,
 
 func init() {
 	rootCmd.AddCommand(runCmd)
-
-	runCmd.PersistentFlags().BoolVarP(&Verbose, "verbose", "v", false, "Enables verbose debug info.")
-	runCmd.PersistentFlags().StringVar(&RunID, "runid", "", "Set unique ID to identify benchmark results.")
-	runCmd.PersistentFlags().StringVar(&ElsaticsearchURL, "elasticsearch-url", "", "Set URL of Elasticsearch instance to export results to.")
-	runCmd.PersistentFlags().StringVar(&ElasticsearchIndex, "elasticsearch-index", "", "Set Elasticsearch Index to send results to.")
+	ctx := define.GetContext()
+	runCmd.PersistentFlags().BoolVarP(&ctx.Verbose, "verbose", "v", false, "Enables verbose debug info.")
+	runCmd.PersistentFlags().StringVarP(&ctx.RunID, "uuid", "u", "", "Set unique run UUID ID to identify benchmark results.")
+	runCmd.PersistentFlags().StringVar(&ctx.ElasticsearchURL, "elasticsearch-url", "", "Set URL of Elasticsearch instance to export results to.")
+	runCmd.PersistentFlags().StringVar(&ctx.ElasticsearchIndex, "elasticsearch-index", "", "Set Elasticsearch Index to send results to.")
 }
