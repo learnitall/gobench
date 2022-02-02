@@ -21,7 +21,7 @@ THE SOFTWARE.
 */
 package main
 
-import "github.com/learnitall/gobenchmark/cmd"
+import "gobench/cmd"
 
 func main() {
 	cmd.Execute()
