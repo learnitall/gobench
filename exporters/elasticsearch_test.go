@@ -158,28 +158,28 @@ func TestElasticsearchExporterCanExportPayloads(t *testing.T) {
 	err := es.Setup(cfg)
 	if err != nil {
 		t.Errorf(
-			"Got error during setup: %e", err,
+			"Got error during setup: %s", err,
 		)
 	}
 
 	payload, err := es.Marshal(MockPayload{Key: "value"})
 	if err != nil {
 		t.Errorf(
-			"Got error during marshal: %e", err,
+			"Got error during marshal: %s", err,
 		)
 	}
 
 	err = es.Export(payload)
 	if err != nil {
 		t.Errorf(
-			"Received error while calling Export: %e", err,
+			"Received error while calling Export: %s", err,
 		)
 	}
 
 	err = es.Teardown()
 	if err != nil {
 		t.Errorf(
-			"Received error while calling Teardown: %e", err,
+			"Received error while calling Teardown: %s", err,
 		)
 	}
 
@@ -219,28 +219,28 @@ func TestElasticsearchExporterFailsGracefullyOnExportFail(t *testing.T) {
 	err := es.Setup(cfg)
 	if err != nil {
 		t.Errorf(
-			"Got error during setup: %e", err,
+			"Got error during setup: %s", err,
 		)
 	}
 
 	payload, err := es.Marshal(MockPayload{Key: "value"})
 	if err != nil {
 		t.Errorf(
-			"Got error during marshal: %e", err,
+			"Got error during marshal: %s", err,
 		)
 	}
 
 	err = es.Export(payload)
 	if err != nil {
 		t.Errorf(
-			"Got error during export: %e", err,
+			"Got error during export: %s", err,
 		)
 	}
 
 	err = es.Teardown()
 	if err != nil {
 		t.Errorf(
-			"Received error while calling Teardown: %e", err,
+			"Received error while calling Teardown: %s", err,
 		)
 	}
 
