@@ -1,3 +1,5 @@
+// elasticsearch.go implements the ElasticsearchExporter object, which is used to
+// export benchmark results to ElasticSearch.
 package exporters
 
 import (

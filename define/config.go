@@ -1,5 +1,4 @@
-// config.go provides items which help define the current runtime context,
-// such as configurations and shared objects.
+// config.go provides items which help define the current runtime configuration.
 package define
 
 import (
