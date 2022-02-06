@@ -9,8 +9,8 @@ type Exporterable interface {
 	// As an example, this could create a goroutine and some channels to
 	// perform async export in the background.
 	Setup(*Config) error
-	// Teardown takes in current Config and closes the Exporter down.
-	Teardown(*Config) error
+	// Teardown closes the Exporter down.
+	Teardown() error
 	// Healthcheck ensures that the exporter is ready to function.
 	Healthcheck() error
 	// Marshal prepares the given object to be exported by marshaling it into

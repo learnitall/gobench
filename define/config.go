@@ -17,7 +17,6 @@ type Config struct {
 	ElasticsearchIndex               string
 	ElasticsearchSkipVerify          bool
 	ElasticsearchInjectProductHeader bool
-	ElasticsearchWorkers             int
 }
 
 var configLock = &sync.Mutex{}

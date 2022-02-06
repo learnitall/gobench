@@ -11,7 +11,6 @@ import (
 	"math"
 	"net/http"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/elastic/go-elasticsearch/v8"
@@ -97,13 +96,12 @@ func (t *fasthttpTransport) RoundTrip(req *http.Request) (*http.Response, error)
 
 // ElasticsearchExporter is used to export benchmark results into Elasticsearch
 type ElasticsearchExporter struct {
-	cfg              *elasticsearch.Config
-	client           *elasticsearch.Client
-	bulkIndexer      *esutil.BulkIndexer
-	bulkCfg          *esutil.BulkIndexerConfig
-	index            string
-	documentsIndexed uint64
-	clusterInfo      map[string]interface{}
+	cfg         *elasticsearch.Config
+	client      *elasticsearch.Client
+	bulkIndexer *esutil.BulkIndexer
+	bulkCfg     *esutil.BulkIndexerConfig
+	index       string
+	clusterInfo map[string]interface{}
 }
 
 func (es *ElasticsearchExporter) Setup(cfg *define.Config) error {
@@ -153,6 +151,11 @@ func (es *ElasticsearchExporter) Setup(cfg *define.Config) error {
 		NumWorkers:    3,
 		FlushInterval: 10 * time.Second,
 		FlushBytes:    1e+6, // ~ 1024 KiB or 1 MiB
+		OnError: func(ctx context.Context, err error) {
+			log.Warn().
+				Err(err).
+				Msg("Received error while indexing item through the bulk indexer")
+		},
 	}
 	es.bulkCfg = &bulkCfg
 
@@ -163,8 +166,6 @@ func (es *ElasticsearchExporter) Setup(cfg *define.Config) error {
 			Msg("Unable to create new bulk indexer for ElasticsearchExporter.")
 	}
 	es.bulkIndexer = &bi
-
-	es.documentsIndexed = 0
 
 	log.Info().
 		Interface("cfg", cfg).
@@ -241,7 +242,7 @@ func (es *ElasticsearchExporter) Healthcheck() error {
 	return nil
 }
 
-func (es *ElasticsearchExporter) Teardown(cfg *define.Config) error {
+func (es *ElasticsearchExporter) Teardown() error {
 	indexer := *es.bulkIndexer
 	if err := indexer.Close(context.Background()); err != nil {
 		log.Error().
@@ -263,13 +264,6 @@ func (es *ElasticsearchExporter) Export(payload []byte) error {
 		esutil.BulkIndexerItem{
 			Action: "index",
 			Body:   bytes.NewReader(payload),
-			OnSuccess: func(
-				ctx context.Context,
-				bii esutil.BulkIndexerItem,
-				biri esutil.BulkIndexerResponseItem,
-			) {
-				atomic.AddUint64(&es.documentsIndexed, 1)
-			},
 			OnFailure: func(
 				c context.Context,
 				bii esutil.BulkIndexerItem,
