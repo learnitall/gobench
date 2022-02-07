@@ -7,30 +7,29 @@ package uperf
 import (
 	"encoding/xml"
 	"fmt"
+	"os"
+	"regexp"
+	"sort"
 	"strings"
 )
 
 type Profile struct {
-	// XMLName xml.Name `xml:"profile"`
 	Name   string  `xml:"name,attr"`
 	Groups []Group `xml:"group"`
 }
 
 type Group struct {
-	// XMLName      xml.Name      `xml:"group"`
 	NThreads     string        `xml:"nthreads,attr"`
 	Transactions []Transaction `xml:"transaction"`
 }
 
 type Transaction struct {
-	// XMLName    xml.Name `xml:"transaction"`
 	Duration   string   `xml:"duration,attr"`
 	Iterations string   `xml:"iterations,attr"`
 	FlowOps    []FlowOp `xml:"flowop"`
 }
 
 type FlowOp struct {
-	// XMLName xml.Name `xml:"flowop"`
 	Type    string `xml:"type,attr"`
 	Options string `xml:"options,attr"`
 }
@@ -54,6 +53,39 @@ func ParseFlowOpOptions(optionsStr string) (FlowOpOptions, error) {
 	}
 
 	return options, nil
+}
+
+// PerformEnvSubst finds environment variables defined in the workload xml
+// and tries to substitute them with their values within the environment.
+func PerformEnvSubst(workloadRawBytes []byte) ([]byte, error) {
+	workloadRawString := string(workloadRawBytes)
+
+	r := regexp.MustCompile(`\$[a-zA-Z0-9]+`)
+	matches := r.FindAllString(workloadRawString, -1)
+	if matches == nil {
+		return workloadRawBytes, nil
+	}
+
+	// Need to sort so longer matches get substituted first.
+	// This prevents values such as `$h2` getting turned into `${h}2`
+	sort.Slice(matches, func(i, j int) bool {
+		return len(matches[i]) > len(matches[j])
+	})
+
+	for _, envVarInXML := range matches {
+		envVar := strings.TrimSpace(envVarInXML)
+		envVar = envVar[1:] // remove the first '$'
+		envVal, ok := os.LookupEnv(envVar)
+		if !ok {
+			return workloadRawBytes, fmt.Errorf(
+				"unable to find value for environment variable %s",
+				envVar,
+			)
+		}
+		workloadRawString = strings.ReplaceAll(workloadRawString, envVarInXML, envVal)
+	}
+
+	return []byte(workloadRawString), nil
 }
 
 // ParseWorkloadXML parses a uperf workload xml file into a Profile struct.
