@@ -23,9 +23,9 @@ benchmark which can be executed and has its own options.`,
 
 func init() {
 	rootCmd.AddCommand(runCmd)
-	ctx := define.GetContext()
-	runCmd.PersistentFlags().BoolVarP(&ctx.Verbose, "verbose", "v", false, "Enables verbose debug info.")
-	runCmd.PersistentFlags().StringVarP(&ctx.RunID, "uuid", "u", "", "Set unique run UUID ID to identify benchmark results.")
-	runCmd.PersistentFlags().StringVar(&ctx.ElasticsearchURL, "elasticsearch-url", "", "Set URL of Elasticsearch instance to export results to.")
-	runCmd.PersistentFlags().StringVar(&ctx.ElasticsearchIndex, "elasticsearch-index", "", "Set Elasticsearch Index to send results to.")
+	cfg := define.GetConfig()
+	runCmd.PersistentFlags().BoolVarP(&cfg.Verbose, "verbose", "v", false, "Enables verbose debug info.")
+	runCmd.PersistentFlags().StringVarP(&cfg.RunID, "uuid", "u", "", "Set unique run UUID ID to identify benchmark results.")
+	runCmd.PersistentFlags().StringVar(&cfg.ElasticsearchURL, "elasticsearch-url", "", "Set URL of Elasticsearch instance to export results to.")
+	runCmd.PersistentFlags().StringVar(&cfg.ElasticsearchIndex, "elasticsearch-index", "", "Set Elasticsearch Index to send results to.")
 }
