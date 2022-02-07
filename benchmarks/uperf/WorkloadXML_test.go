@@ -2,9 +2,8 @@ package uperf
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
-
-	"github.com/go-test/deep"
 )
 
 // https://github.com/uperf/uperf/blob/7ac3d0b0353c42ea5c9c83c27f84b1873be50247/workloads/VoIPRx.xml
@@ -233,10 +232,10 @@ func TestParseWorkloadXML(t *testing.T) {
 		}
 		unmarshalled_xml := *_unmarshalled_xml
 
-		if diff := deep.Equal(unmarshalled_json, unmarshalled_xml); diff != nil {
+		if !reflect.DeepEqual(unmarshalled_json, unmarshalled_xml) {
 			t.Errorf(
-				"Expected json is not equal to parsed XML:\n json:\n%s\n xml:\n%s\n diff:\n%s\n",
-				unmarshalled_json, unmarshalled_xml, diff,
+				"Expected json is not equal to parsed XML:\n json:\n%s\n xml:\n%s\n",
+				unmarshalled_json, unmarshalled_xml,
 			)
 		}
 	}
