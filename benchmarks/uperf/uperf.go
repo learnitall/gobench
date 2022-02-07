@@ -1,11 +1,15 @@
 package uperf
 
-type UperfBenchmark struct{}
+import (
+	"github.com/learnitall/gobench/define"
+)
 
-func (u *UperfBenchmark) parseWorkload(workloadRaw string) {
-
+// UperfBenchmark helps facilitate running Uperf.
+// It implements the define.Benchmarkable interface.
+type UperfBenchmark struct {
+	WorkloadPath string
 }
 
-func (u *UperfBenchmark) parseStdout(stdout string) {
-
+func (u *UperfBenchmark) Run(*define.Config) error {
+	return nil
 }
