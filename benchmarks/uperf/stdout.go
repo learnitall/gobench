@@ -89,7 +89,6 @@ type UperfStdout struct {
 	StrandDetails  StrandDetails
 	GroupDetails   GroupDetails
 	ExtraOutput    string
-	FullOutput     string
 }
 
 // newUperfStdout creates a new UperfStdout struct and initializes all of its maps.
@@ -709,7 +708,6 @@ func ParseUperfStdout(uperfStdout string) (*UperfStdout, error) {
 		lines        []string     = strings.Split(uperfStdout, "\n")
 		resultStruct *UperfStdout = newUperfStdout()
 	)
-	resultStruct.FullOutput = uperfStdout
 	err := parseUperfStdout(lines, resultStruct)
 	if err != nil {
 		return nil, err
