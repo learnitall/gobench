@@ -2,9 +2,13 @@ package cmd
 
 import (
 	"os"
+	"runtime/debug"
 
 	"github.com/learnitall/gobench/define"
+	"github.com/learnitall/gobench/exporters"
 
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
@@ -28,4 +32,58 @@ func init() {
 	runCmd.PersistentFlags().StringVarP(&cfg.RunID, "uuid", "u", "", "Set unique run UUID ID to identify benchmark results.")
 	runCmd.PersistentFlags().StringVar(&cfg.ElasticsearchURL, "elasticsearch-url", "", "Set URL of Elasticsearch instance to export results to.")
 	runCmd.PersistentFlags().StringVar(&cfg.ElasticsearchIndex, "elasticsearch-index", "", "Set Elasticsearch Index to send results to.")
+}
+
+// SetLogLevel sets the current log level based on the given Config.
+func SetLogLevel(config *define.Config) {
+	if config.Verbose {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	} else {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	}
+}
+
+// LogVersion tries to log the current version of gobench at the info level.
+func LogVersion() {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		log.Warn().Msg("Failed to read build info, unable to get version.")
+		return
+	}
+	log.Info().
+		Str("version", bi.Main.Version).
+		Msg("Starting gobench.")
+}
+
+// GetExporter takes in the current Config and returns an appropriate Exporterable.
+// Note: since ES is the only exporter defined, this function always
+// creates an ElasticsearchExporter.
+func GetExporter(config *define.Config) define.Exporterable {
+	return &exporters.ElasticsearchExporter{}
+}
+
+// CheckError wraps a function call which returns an error.
+// If an error is returned, then `os.Exit(1)` is called
+func CheckError(err error) {
+	if err != nil {
+		os.Exit(1)
+	}
+}
+
+// RunBenchmark actually performs the task of running a benchmark.
+func RunBenchmark(bench define.Benchmarkable) {
+	var (
+		cfg      *define.Config = define.GetConfig()
+		exporter define.Exporterable
+	)
+	exporter = GetExporter(cfg)
+
+	CheckError(exporter.Setup(cfg))
+	CheckError(bench.Setup(cfg))
+	CheckError(bench.Run(exporter))
+
+	// Don't want to exit on these, as doing so
+	// would interrupt other cleanup tasks
+	bench.Teardown(cfg)
+	exporter.Teardown()
 }
