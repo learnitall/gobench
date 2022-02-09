@@ -1,5 +1,11 @@
 package uperf
 
+import (
+	"encoding/json"
+	"fmt"
+	"testing"
+)
+
 // uperf -T -t -f -g -k -p -e -E -a -v  -m iperf.xml
 var UPERF_TEST_STDOUT_ALL_ARGS string = `Error getting SSL CTX:1
 Allocating shared memory of size 156624 bytes
@@ -81,6 +87,7 @@ Warning: Recv buffer: 100.00KB (Requested:50.00KB)
 
 `
 
+// uperf -m iperf.xml
 var UPERF_TEST_STDOUT_MINIMAL_ARGS string = `Error getting SSL CTX:1
 Starting 1 threads running profile:iperf ...   0.00 seconds
 Txn1            0 /   1.00(s) =            0           1op/s                                                                   
@@ -113,6 +120,7 @@ Warning: Recv buffer: 100.00KB (Requested:50.00KB)
 
 `
 
+// uperf -T -t -f -g -k -p -e -E -a -v -R -m iperf.xml
 var UPERF_TEST_STDOUT_ALL_ARGS_RAW string = `Error getting SSL CTX:1
 Allocating shared memory of size 156624 bytes
 Completed handshake phase 1
@@ -193,14 +201,14 @@ timestamp_ms:1644254626628.9026 name:Thr0 nr_bytes:79955230720 nr_ops:9760163
 Txn                Count         avg         cpu         max         min 
 -------------------------------------------------------------------------------------------------------------------------------
 Txn0                   1     69.90us      0.00ns     69.90us     69.90us 
-Txn1              976017     30.11us      0.00ns 18446744069     14.08us 
+Txn1              976017     30.11us      0.00ns 184467440ms     14.08us 
 Txn2                   1      1.30us      0.00ns      1.30us      1.30us 
 
 
 Flowop             Count         avg         cpu         max         min 
 -------------------------------------------------------------------------------------------------------------------------------
 connect                1     69.62us      0.00ns     69.62us     69.62us 
-write            9760160      3.00us      0.00ns 18446744069     22.88us 
+write            9760160      3.00us      0.00ns 184467440ms     22.88us 
 disconnect             1      1.01us      0.00ns      1.01us      1.01us 
 
 
@@ -225,3 +233,14 @@ Warning: Recv buffer: 100.00KB (Requested:50.00KB)
   
 
 `
+
+func TestParseUperfStdout(t *testing.T) {
+	for _, stdout_test := range []string{UPERF_TEST_STDOUT_ALL_ARGS, UPERF_TEST_STDOUT_ALL_ARGS_RAW, UPERF_TEST_STDOUT_MINIMAL_ARGS} {
+		out, err := ParseUperfStdout(stdout_test)
+		if err != nil {
+			t.Errorf("Unexpected error when parsing stdout: %s", err)
+		}
+		marshalled, _ := json.MarshalIndent(out, "", "    ")
+		fmt.Println(string(marshalled))
+	}
+}
