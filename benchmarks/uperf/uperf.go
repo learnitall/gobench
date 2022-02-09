@@ -13,9 +13,10 @@ import (
 
 // UperfResultPayload holds results of the uperf benchmark, ready to be marshalled and exported.
 type UperfResultPayload struct {
-	Result  UperfStdout
-	Profile Profile
-	Cmd     []string
+	Result   UperfStdout
+	Profile  Profile
+	Cmd      []string
+	Metadata define.Metadata
 }
 
 // UperfBenchmark helps facilitate running Uperf.
@@ -25,13 +26,14 @@ type UperfBenchmark struct {
 	WorkloadRaw  string
 	Profile      Profile
 	Cmd          []string
+	Metadata     define.Metadata
 }
 
 // Setup runs setup tasks for the UperfBenchmark.
 // Assumes that the following fields are already set:
 // - WorkloadPath
 // - Cmd
-func (u *UperfBenchmark) Setup(*define.Config) error {
+func (u *UperfBenchmark) Setup(cfg *define.Config) error {
 	workloadBytes, err := ioutil.ReadFile(u.WorkloadPath)
 	if err != nil {
 		return fmt.Errorf(
@@ -50,6 +52,7 @@ func (u *UperfBenchmark) Setup(*define.Config) error {
 
 	u.WorkloadRaw = string(workloadBytes)
 	u.Profile = *profile
+	u.Metadata = define.GetMetadataPayload(cfg)
 
 	return nil
 }
@@ -92,9 +95,10 @@ func (u *UperfBenchmark) Run(exporter define.Exporterable) error {
 	}
 
 	payload := UperfResultPayload{
-		Result:  *stdoutResult,
-		Profile: u.Profile,
-		Cmd:     u.Cmd,
+		Result:   *stdoutResult,
+		Profile:  u.Profile,
+		Cmd:      u.Cmd,
+		Metadata: u.Metadata,
 	}
 	log.Info().Msg("Parsed stdout and prepared payload, marshalling.")
 

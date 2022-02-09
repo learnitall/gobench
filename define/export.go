@@ -1,6 +1,19 @@
 // export.go defines items relevant to the export of benchmark data.
 package define
 
+// Metadata is a struct intended to be used by benchmarks to apply
+// common metadata options to their payloads.
+type Metadata struct {
+	RunID string
+}
+
+// GetMetadataPayload constructs a new Metadata struct from the given Config instance.
+func GetMetadataPayload(cfg *Config) Metadata {
+	return Metadata{
+		RunID: cfg.RunID,
+	}
+}
+
 // Exporterable defines methods needed by concrete Exporter objects.
 // It is assumed that Exporterable objects are created with the intention
 // of being added into the current runtime's Config.
