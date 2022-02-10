@@ -1,0 +1,6 @@
+ARG BENCH='uperf'
+FROM gobench:base-latest as builder
+
+FROM fedora:latest
+RUN dnf install -y uperf && dnf clean all
+COPY --from=builder /usr/src/app/gobench /usr/bin/gobench
