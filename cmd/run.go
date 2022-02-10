@@ -79,6 +79,7 @@ func RunBenchmark(bench define.Benchmarkable) {
 	exporter = GetExporter(cfg)
 
 	CheckError(exporter.Setup(cfg))
+	CheckError(exporter.Healthcheck())
 	CheckError(bench.Setup(cfg))
 	CheckError(bench.Run(exporter))
 
