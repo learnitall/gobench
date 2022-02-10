@@ -1,0 +1,137 @@
+{
+  "properties": {
+    "StartTime": {
+      "type": "date",
+      "format": "strict_date_optional_time||epoch_second"
+    },
+    "EndTime": {
+      "type": "date",
+      "format": "strict_date_optional_time||epoch_second"
+    },
+    "Timestamp": {
+      "type": "date",
+      "format": "strict_date_optional_time||epoch_second"
+    },
+    "Cmd": {
+      "type": "text"
+    },
+    "Metadata": {
+      "type": "object",
+      "enabled": true,
+      "dynamic": true
+    },
+    "Profile": {
+      "properties": {
+        "Name": {
+          "type": "keyword"
+        },
+        "Groups": {
+          "type": "nested",
+          "include_in_parent": true,
+          "include_in_root": true,
+          "dynamic": true,
+          "properties": {
+            "NThreads": {
+              "type": "unsigned_long"
+            },
+            "Transactions": {
+              "type": "nested",
+              "dynamic": true,
+              "include_in_parent": true,
+              "include_in_root": true,
+              "properties": {
+                "Duration": {
+                  "type": "keyword"
+                },
+                "Iterations": {
+                  "type": "unsigned_long"
+                },
+                "FlowOps": {
+                  "type": "nested",
+                  "dynamic": true,
+                  "properties": {
+                    "Type": {
+                      "type": "keyword"
+                    },
+                    "Options": {
+                      "type": "text"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Result": {
+      "properties": {
+        "RunStats": {
+          "properties": {
+            "Hosts": {
+              "type": "object",
+              "enabled": true,
+              "dynamic": true
+            },
+            "Diff": {
+              "type": "object",
+              "enabled": true,
+              "dynamic": true
+            }
+          }
+        },
+        "NetstatStats": {
+          "type": "object",
+          "enabled": true,
+          "dynamic": true
+        },
+        "TXNAverages": {
+          "type": "object",
+          "enabled": true,
+          "dynamic": true
+        },
+        "FlowopAverages": {
+          "type": "object",
+          "enabled": true,
+          "dynamic": true
+        },
+        "TXStats": {
+          "type": "nested",
+          "include_in_parent": true,
+          "include_in_root": true,
+          "dynamic": true,
+          "properties": {
+            "TotalSeconds": {
+              "type": "double"
+            }
+          }
+        },
+        "StrandDetails": {
+          "type": "nested",
+          "include_in_parent": true,
+          "include_in_root": true,
+          "dynamic": true,
+          "properties": {
+            "TotalSeconds": {
+              "type": "double"
+            }
+          }
+        },
+        "GroupDetails": {
+          "type": "nested",
+          "include_in_parent": true,
+          "include_in_root": true,
+          "dynamic": true,
+          "properties": {
+            "TotalSeconds": {
+              "type": "double"
+            }
+          }
+        },
+        "ExtraOutput": {
+          "type": "text"
+        }
+      }
+    }
+  }
+}
