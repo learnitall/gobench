@@ -125,6 +125,9 @@ func (es *ElasticsearchExporter) Setup(cfg *define.Config) error {
 		RetryOnStatus: []int{502, 503, 504, 429},
 		MaxRetries:    5,
 		RetryBackoff: func(i int) time.Duration {
+			log.Warn().
+				Int("total_retries", i-1).
+				Msg("Backing off before retrying connecting to ElasticSearch")
 			// use binary exponential backoff
 			return time.Duration(
 				math.Floor(
@@ -240,7 +243,7 @@ func (es *ElasticsearchExporter) Healthcheck() error {
 				es.clusterInfo["version"].(map[string]interface{})["number"],
 			),
 		).
-		Msg("Healcheck for ElasticsearchExporter successful!")
+		Msg("Healthcheck for ElasticsearchExporter successful!")
 	return nil
 }
 
@@ -252,6 +255,8 @@ func (es *ElasticsearchExporter) Teardown() error {
 			Msg("Unexpected error while closing out bulk indexer.")
 		return err
 	}
+	log.Info().
+		Msg("Teardown for ElasticsearchExporter successful!")
 	return nil
 }
 
@@ -293,6 +298,10 @@ func (es *ElasticsearchExporter) Export(payload []byte) error {
 			Msg("Unexpected error while adding item to bulk indexer")
 		return err
 	}
+
+	log.Info().
+		Bytes("payload", payload).
+		Msg("Successfully queued item for export")
 
 	return nil
 }
