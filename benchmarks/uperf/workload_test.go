@@ -1,3 +1,6 @@
+//go:build uperf_test
+// +build uperf_test
+
 package uperf
 
 import (
