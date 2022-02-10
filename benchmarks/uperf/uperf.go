@@ -1,3 +1,6 @@
+//go:build uperf
+// +build uperf
+
 package uperf
 
 import (
@@ -6,6 +9,7 @@ import (
 	"io/ioutil"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/learnitall/gobench/define"
 	"github.com/rs/zerolog/log"
@@ -13,10 +17,13 @@ import (
 
 // UperfResultPayload holds results of the uperf benchmark, ready to be marshalled and exported.
 type UperfResultPayload struct {
-	Result   UperfStdout
-	Profile  Profile
-	Cmd      []string
-	Metadata define.Metadata
+	Result    UperfStdout
+	Profile   Profile
+	Cmd       []string
+	Metadata  define.Metadata
+	StartTime int64
+	EndTime   int64
+	Timestamp int64
 }
 
 // UperfBenchmark helps facilitate running Uperf.
@@ -42,7 +49,15 @@ func (u *UperfBenchmark) Setup(cfg *define.Config) error {
 		)
 	}
 
-	profile, err := ParseWorkloadXML(workloadBytes)
+	workloadParsedBytes, err := PerformEnvSubst(workloadBytes)
+	if err != nil {
+		return fmt.Errorf(
+			"unable to parse environment variables in workload file at %s: %s",
+			u.WorkloadPath, err,
+		)
+	}
+
+	profile, err := ParseWorkloadXML(workloadParsedBytes)
 	if err != nil {
 		return fmt.Errorf(
 			"unable to parse workload file at %s: %s",
@@ -50,9 +65,12 @@ func (u *UperfBenchmark) Setup(cfg *define.Config) error {
 		)
 	}
 
-	u.WorkloadRaw = string(workloadBytes)
+	u.WorkloadRaw = string(workloadParsedBytes)
 	u.Profile = *profile
 	u.Metadata = define.GetMetadataPayload(cfg)
+
+	log.Info().
+		Msg("Successfully initiated the uperf benchmark.")
 
 	return nil
 }
@@ -69,8 +87,11 @@ func (u *UperfBenchmark) Run(exporter define.Exporterable) error {
 	var out bytes.Buffer
 	cmd.Stdout = &out
 
+	start := time.Now().Unix()
 	err := cmd.Run()
+	end := time.Now().Unix()
 	stdout := out.String()
+
 	if err != nil {
 		log.Fatal().
 			Str("stdout", stdout).
@@ -82,8 +103,13 @@ func (u *UperfBenchmark) Run(exporter define.Exporterable) error {
 	log.Info().
 		Msg("Uperf successfully finished, preparing results.")
 	log.Debug().
+		Int64("start_time", start).
+		Int64("end_time", end).
 		Str("stdout", stdout).
 		Msg("Received the following stdout.")
+
+	// Replace \r with \n so regardless of which one we get we can parse
+	stdout = strings.ReplaceAll(stdout, "\r", "\n")
 
 	stdoutResult, err := ParseUperfStdout(stdout)
 	if err != nil {
@@ -95,12 +121,16 @@ func (u *UperfBenchmark) Run(exporter define.Exporterable) error {
 	}
 
 	payload := UperfResultPayload{
-		Result:   *stdoutResult,
-		Profile:  u.Profile,
-		Cmd:      u.Cmd,
-		Metadata: u.Metadata,
+		Result:    *stdoutResult,
+		Profile:   u.Profile,
+		Cmd:       u.Cmd,
+		Metadata:  u.Metadata,
+		StartTime: start,
+		EndTime:   end,
+		Timestamp: time.Now().Unix(),
 	}
-	log.Info().Msg("Parsed stdout and prepared payload, marshalling.")
+	log.Info().
+		Msg("Parsed stdout and prepared payload, marshalling.")
 
 	marshalled, err := exporter.Marshal(payload)
 	if err != nil {
@@ -109,13 +139,18 @@ func (u *UperfBenchmark) Run(exporter define.Exporterable) error {
 			Msg("Unable to marshal uperf result payload.")
 		return err
 	}
+	log.Info().
+		Bytes("marshalled_stdout", marshalled).
+		Msg("Marshalling successful, exporting.")
 
 	err = exporter.Export(marshalled)
 	if err != nil {
 		log.Fatal().
 			Err(err).
 			Msg("Unexpected error while exporting marshalled payload.")
+		return err
 	}
+	log.Info().Msg("Successfully sent payload to exporter.")
 
 	return nil
 }
@@ -123,5 +158,6 @@ func (u *UperfBenchmark) Run(exporter define.Exporterable) error {
 // Teardown function for the uperf benchmark.
 // No specific tasks need to be run, so this just returns nil.
 func (u *UperfBenchmark) Teardown(*define.Config) error {
+	log.Info().Msg("Uperf benchmark finished")
 	return nil
 }
