@@ -1,3 +1,6 @@
+//go:build uperf
+// +build uperf
+
 // xml.go defines functionality for parsing XML workload files into structs.
 // References:
 // - https://tutorialedge.net/golang/parsing-xml-with-golang/
