@@ -1,3 +1,6 @@
+//go:build uperf
+// +build uperf
+
 package uperf
 
 import (
