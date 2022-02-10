@@ -42,5 +42,5 @@ local-kb: local-eskb-net
 	$(RUN) --name kib01-gobench --net elastic -p 127.0.0.1:5601:5601 -e "ELASTICSEARCH_HOSTS=http://es01-gobench:9200" docker.elastic.co/kibana/kibana:7.17.0
 
 local-cleanup:
+	$(RM) kib01-gobench es01-gobench
 	$(NETWORK) rm elastic
-	$(RM) kit01-gobench es01-gobench
