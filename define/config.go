@@ -11,6 +11,7 @@ import (
 // Reference: https://refactoring.guru/design-patterns/singleton/go/example
 type Config struct {
 	Verbose                          bool
+	Quiet                            bool
 	RunID                            string
 	ElasticsearchURL                 string
 	ElasticsearchIndex               string
