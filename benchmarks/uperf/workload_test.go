@@ -10,6 +10,14 @@ import (
 	"testing"
 )
 
+// These values need to be synced within the above strings.
+var ENV_SUBST_VARS map[string]string = map[string]string{
+	"h":     "127.0.0.1",
+	"h2":    "myhost.custom",
+	"proto": "tcp",
+	"nthr":  "10",
+}
+
 // https://github.com/uperf/uperf/blob/7ac3d0b0353c42ea5c9c83c27f84b1873be50247/workloads/VoIPRx.xml
 var WORKLOAD_XML_VOIPRX string = `<?xml version="1.0"?>
 <profile name="VoIP Rx">
@@ -41,20 +49,22 @@ var WORKLOAD_JSON_VOIPRX = `{
 	"name": "VoIP Rx",
 	"groups": [
 		{
-			"nthreads": "200",
+			"nthreads": 200,
 			"XMLName": "group",
 			"transactions": [
 				{
-					"iterations": "1",
+					"iterations": 1,
+					"durationSeconds": -1,
 					"flowops": [
 						{
 						    "type": "connect",
-							"options": "remotehost=$h protocol=udp"
+							"options": "remotehost=127.0.0.1 protocol=udp"
 						}
 					]
 				},
 				{
-					"duration": "120s",
+					"durationSeconds": 120,
+					"iterations": -1,
 					"flowops": [
 						{
 							"type": "read",
@@ -63,7 +73,8 @@ var WORKLOAD_JSON_VOIPRX = `{
 					]
 				},
 				{
-					"iterations": "1",
+					"iterations": 1,
+					"durationSeconds": -1,
 					"flowops": [
 						{
 							"type": "disconnect"
@@ -73,19 +84,21 @@ var WORKLOAD_JSON_VOIPRX = `{
 			]
 		},
 		{
-			"nthreads": "200",
+			"nthreads": 200,
 			"transactions": [
 				{
-					"iterations": "1",
+					"iterations": 1,
+					"durationSeconds": -1,
 					"flowops": [
 						{
 							"type": "connect",
-							"options": "remotehost=$h2 protocol=udp"
+							"options": "remotehost=myhost.custom protocol=udp"
 						}
 					]
 				},
 				{
-					"duration": "120s",
+					"durationSeconds": 120,
+					"iterations": -1,
 					"flowops": [
 						{
 							"type": "read",
@@ -94,7 +107,8 @@ var WORKLOAD_JSON_VOIPRX = `{
 					]
 				},
 				{
-					"iterations": "1",
+					"iterations": 1,
+					"durationSeconds": -1,
 					"flowops": [
 						{
 							"type": "disconnect"
@@ -152,19 +166,21 @@ var WORKLOAD_JSON_IPERF string = `{
 	"name": "iPERF",
 	"groups": [
 		{
-			"nthreads": "$nthr",
+			"nthreads": 10,
 			"transactions": [
 				{
-					"iterations": "1",
+					"iterations": 1,
+					"durationSeconds": -1,
 					"flowops": [
 						{
 							"type": "connect",
-							"options": "remotehost=$h protocol=$proto wndsz=50k  tcp_nodelay"
+							"options": "remotehost=127.0.0.1 protocol=tcp wndsz=50k  tcp_nodelay"
 						}
 					]
 				},
 				{
-					"duration": "30s",
+					"durationSeconds": 30,
+					"iterations": -1,
 					"flowops": [
 						{
 							"type": "write",
@@ -173,7 +189,8 @@ var WORKLOAD_JSON_IPERF string = `{
 					]
 				},
 				{
-					"iterations": "1",
+					"iterations": 1,
+					"durationSeconds": -1,
 					"flowops": [
 						{
 							"type": "disconnect"
@@ -210,14 +227,6 @@ var WORKLOAD_XML_ENV_SUBST_TESTS map[string]string = map[string]string{
 	WORKLOAD_XML_VOIPRX: WORKLOAD_XML_VOIPRX_ENV_SUBST,
 }
 
-// These values need to be synced within the above strings.
-var ENV_SUBST_VARS map[string]string = map[string]string{
-	"h":     "127.0.0.1",
-	"h2":    "myhost.custom",
-	"proto": "tcp",
-	"nthr":  "10",
-}
-
 // find looks for an item in a slice.
 // Reference: https://golangcode.com/check-if-element-exists-in-slice/
 func find(slice []string, val string) bool {
@@ -229,54 +238,12 @@ func find(slice []string, val string) bool {
 	return false
 }
 
-// TestParseFlowOpOptions tests that ParseFlowOpOptions can successfully
-// parse options given as space-separated key=value pairs, raising an error
-// if a bad input is given.
-func TestParseFlowOpOptions(t *testing.T) {
-	var expected map[string]string = map[string]string{
-		"key":                 "value",
-		"hey_there":           "hi_mom",
-		"this_is_another_KEY": "THIS_IS_aNoThEr_Value",
-	}
-	var inputStr string = "key=value hey_there=hi_mom this_is_another_KEY=THIS_IS_aNoThEr_Value"
-
-	options, err := ParseFlowOpOptions(inputStr)
-
-	if err != nil {
-		t.Errorf("Got error while parsing known-good option string: %s", err)
-	}
-
-	var parsedKeys []string = []string{}
-	for key, val := range options {
-		expected_val, ok := expected[key]
-
-		if !ok {
-			t.Errorf(
-				"Got unknown key in parsed output: %s", key,
-			)
-		}
-		parsedKeys = append(parsedKeys, key)
-		if expected_val != val {
-			t.Errorf(
-				"Expected value does not meet given value. Expected %s, got %s",
-				expected_val, val,
-			)
-		}
-	}
-
-	for key := range expected {
-		ok := find(parsedKeys, key)
-		if !ok {
-			t.Errorf(
-				"Expected the following key in parsed output, but it wasn't found: %s", key,
-			)
-		}
-	}
-}
-
 // TestParseWorkloadXML tries to parse sample profiles given by Uperf
 // into JSON, testing if it matches prepared JSON versions of the profiles.
 func TestParseWorkloadXML(t *testing.T) {
+	for env_key, env_value := range ENV_SUBST_VARS {
+		os.Setenv(env_key, env_value)
+	}
 	for workload_xml, workload_json := range WORKLOAD_XML_TO_JSON_TESTS {
 		var unmarshalled_json Profile = Profile{}
 
@@ -285,7 +252,12 @@ func TestParseWorkloadXML(t *testing.T) {
 			t.Errorf("Error while trying to unmarshal workload JSON: %s", err)
 		}
 
-		_unmarshalled_xml, err := ParseWorkloadXML([]byte(workload_xml))
+		env_workload_xml, err := PerformEnvSubst([]byte(workload_xml))
+		if err != nil {
+			t.Errorf("Error while trying to perform env substitutions: %s", err)
+		}
+
+		_unmarshalled_xml, err := ParseWorkloadXML(env_workload_xml)
 		if err != nil {
 			t.Errorf("Error while trying to unmarshal workload XML: %s", err)
 		}
@@ -293,10 +265,14 @@ func TestParseWorkloadXML(t *testing.T) {
 
 		if !reflect.DeepEqual(unmarshalled_json, unmarshalled_xml) {
 			t.Errorf(
-				"Expected json is not equal to parsed XML:\n json:\n%s\n xml:\n%s\n",
+				"expected json is not equal to parsed XML:\n json:\n%+v\n xml:\n%+v\n",
 				unmarshalled_json, unmarshalled_xml,
 			)
 		}
+	}
+
+	for env_key := range ENV_SUBST_VARS {
+		os.Unsetenv(env_key)
 	}
 }
 
