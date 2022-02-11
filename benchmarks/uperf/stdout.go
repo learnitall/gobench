@@ -48,8 +48,8 @@ type AveragesStat struct {
 	MinSeconds float64
 }
 
-type FlowopAverages map[string]AveragesStat
-type TXNAverages map[string]AveragesStat
+type FlowopAverages []AveragesStat
+type TXNAverages []AveragesStat
 
 type NetstatStat struct {
 	Name              string
@@ -59,7 +59,7 @@ type NetstatStat struct {
 	InBytesPerSecond  int64
 }
 
-type NetstatStats map[string]NetstatStat
+type NetstatStats []NetstatStat
 
 type RunStat struct {
 	Hostname                 string
@@ -79,7 +79,7 @@ type RunStatDiff struct {
 }
 
 type RunStats struct {
-	Hosts map[string]RunStat
+	Hosts []RunStat
 	Diff  RunStatDiff
 }
 
@@ -98,10 +98,10 @@ type UperfStdout struct {
 func newUperfStdout() *UperfStdout {
 	uperfStdout := UperfStdout{}
 	uperfStdout.RunStats = RunStats{}
-	uperfStdout.RunStats.Hosts = map[string]RunStat{}
-	uperfStdout.NetstatStats = map[string]NetstatStat{}
-	uperfStdout.TXNAverages = map[string]AveragesStat{}
-	uperfStdout.FlowopAverages = map[string]AveragesStat{}
+	uperfStdout.RunStats.Hosts = []RunStat{}
+	uperfStdout.NetstatStats = []NetstatStat{}
+	uperfStdout.TXNAverages = []AveragesStat{}
+	uperfStdout.FlowopAverages = []AveragesStat{}
 	uperfStdout.TXStats = []DetailsStat{}
 	uperfStdout.StrandDetails = []DetailsStat{}
 	uperfStdout.GroupDetails = []DetailsStat{}
@@ -554,7 +554,7 @@ func parseUperfStdoutDetailsSection(stdoutLines []string, resultStruct *UperfStd
 
 // parseUperfStdoutAveragesSection parses a section containing AveragesStat,
 // placing the result into the given UperfStdout struct under the given map.
-func parseUperfStdoutAveragesSection(stdoutLines []string, resultStruct *UperfStdout, targetMap string) ([]string, error) {
+func parseUperfStdoutAveragesSection(stdoutLines []string, resultStruct *UperfStdout, targetSlice string) ([]string, error) {
 	return parseUperfStdoutSection(
 		stdoutLines,
 		func(nextLine string) error {
@@ -562,14 +562,13 @@ func parseUperfStdoutAveragesSection(stdoutLines []string, resultStruct *UperfSt
 			if err != nil {
 				return err
 			}
-			reflect.
-				ValueOf(resultStruct).
-				Elem().
-				FieldByName(targetMap).
-				SetMapIndex(
-					reflect.ValueOf(averagesStat.Name),
-					reflect.ValueOf(*averagesStat),
-				)
+			averagesStatElem := reflect.ValueOf(resultStruct).Elem()
+			targetSliceValue := averagesStatElem.FieldByName(targetSlice)
+			targetSliceValueNew := reflect.Append(
+				targetSliceValue,
+				reflect.ValueOf(*averagesStat),
+			)
+			targetSliceValue.Set(targetSliceValueNew)
 			return nil
 		},
 	)
@@ -588,7 +587,7 @@ func parseUperfStdoutNetstatSection(stdoutLines []string, resultStruct *UperfStd
 			if err != nil {
 				return err
 			}
-			resultStruct.NetstatStats[netstatStat.Name] = *netstatStat
+			resultStruct.NetstatStats = append(resultStruct.NetstatStats, *netstatStat)
 			return nil
 		},
 	)
@@ -615,7 +614,7 @@ func parseUperfStdoutRunStatsSection(stdoutLines []string, resultStruct *UperfSt
 			if err != nil {
 				return err
 			}
-			resultStruct.RunStats.Hosts[runStat.Hostname] = *runStat
+			resultStruct.RunStats.Hosts = append(resultStruct.RunStats.Hosts, *runStat)
 			return nil
 		},
 	)
