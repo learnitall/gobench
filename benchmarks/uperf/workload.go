@@ -13,49 +13,46 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 )
 
-type Profile struct {
-	Name   string  `xml:"name,attr"`
-	Groups []Group `xml:"group"`
+type profileXML struct {
+	Name   string     `xml:"name,attr"`
+	Groups []groupXML `xml:"group"`
 }
 
-type Group struct {
-	NThreads     string        `xml:"nthreads,attr"`
-	Transactions []Transaction `xml:"transaction"`
+type groupXML struct {
+	NThreads     string           `xml:"nthreads,attr"`
+	Transactions []transactionXML `xml:"transaction"`
 }
 
-type Transaction struct {
-	Duration   string   `xml:"duration,attr"`
-	Iterations string   `xml:"iterations,attr"`
-	FlowOps    []FlowOp `xml:"flowop"`
+type transactionXML struct {
+	Duration   string      `xml:"duration,attr"`
+	Iterations string      `xml:"iterations,attr"`
+	FlowOps    []flowOpXML `xml:"flowop"`
 }
 
-type FlowOp struct {
+type flowOpXML struct {
 	Type    string `xml:"type,attr"`
 	Options string `xml:"options,attr"`
 }
 
-type FlowOpOptions map[string]string
+type Profile struct {
+	Name   string
+	Groups []Group
+}
 
-// ParseFlowOpOptions parses the option attr of a FlowOp.
-// These options are presented as space-separated key=value pairs.
-func ParseFlowOpOptions(optionsStr string) (FlowOpOptions, error) {
-	options := FlowOpOptions{}
-	var split []string
+type Group struct {
+	NThreads     int
+	Transactions []Transaction
+}
 
-	for _, optionStr := range strings.Fields(optionsStr) {
-		split = strings.Split(optionStr, "=")
-		if len(split) != 2 {
-			return nil, fmt.Errorf(
-				"unable to parse option, expected 'key=value': %s", optionStr,
-			)
-		}
-		options[split[0]] = split[1]
-	}
-
-	return options, nil
+type Transaction struct {
+	DurationSeconds int
+	Iterations      int
+	FlowOps         []flowOpXML
 }
 
 // PerformEnvSubst finds environment variables defined in the workload xml
@@ -95,10 +92,72 @@ func PerformEnvSubst(workloadRawBytes []byte) ([]byte, error) {
 // Each workload xml file only contains a single Profile, per the uperf documentation.
 // See http://uperf.org/manual.html#id2547203
 func ParseWorkloadXML(workloadRawBytes []byte) (*Profile, error) {
-	var profile Profile
-	err := xml.Unmarshal(workloadRawBytes, &profile)
+	var (
+		err                error
+		profile            Profile = Profile{}
+		profileXMLInstance profileXML
+		nthreads           int
+		duration           int
+		iterations         int
+	)
+
+	err = xml.Unmarshal(workloadRawBytes, &profileXMLInstance)
 	if err != nil {
 		return nil, err
 	}
+
+	// Now we go through and parse each field into the Profile
+	// I know this for loop is mad disgusting, but I'm not sure how
+	// else to do this differently.
+	profile.Name = profileXMLInstance.Name
+	profile.Groups = []Group{}
+
+	for _, groupXML := range profileXMLInstance.Groups {
+		group := Group{}
+		nthreads, err = strconv.Atoi(groupXML.NThreads)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to parse nthreads string into an int: %s",
+				groupXML.NThreads,
+			)
+		}
+		group.NThreads = nthreads
+		group.Transactions = []Transaction{}
+		for _, transactionXML := range groupXML.Transactions {
+			duration = -1
+			iterations = -1
+			if len(transactionXML.Duration) > 0 {
+				_duration, err := time.ParseDuration(transactionXML.Duration)
+				if err != nil {
+					return nil, fmt.Errorf(
+						"Unable to parse transaction duration '%s': %s",
+						transactionXML.Duration,
+						err,
+					)
+				}
+				duration = int(_duration.Seconds())
+			}
+			if err == nil && len(transactionXML.Iterations) > 0 {
+				iterations, err = strconv.Atoi(transactionXML.Iterations)
+				if err != nil {
+					return nil, fmt.Errorf(
+						"Unable to parse transaction iterations '%s': %s",
+						transactionXML.Iterations,
+						err,
+					)
+				}
+			}
+			group.Transactions = append(
+				group.Transactions,
+				Transaction{
+					DurationSeconds: duration,
+					Iterations:      iterations,
+					FlowOps:         transactionXML.FlowOps,
+				},
+			)
+		}
+		profile.Groups = append(profile.Groups, group)
+	}
+
 	return &profile, nil
 }

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"runtime/debug"
 
@@ -29,14 +30,21 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 	cfg := define.GetConfig()
 	runCmd.PersistentFlags().BoolVarP(&cfg.Verbose, "verbose", "v", false, "Enables verbose debug info.")
+	runCmd.PersistentFlags().BoolVarP(&cfg.Quiet, "quiet", "q", false, "Disable all log output. Overrides the --verbose/-v.")
+	runCmd.PersistentFlags().BoolVarP(&cfg.PrintJson, "print-json", "p", false, "Print benchmark results as json documents. Guaranteed that the printed data is jq-pipeable, i.e. `gobench run --quiet --print-json ... | jq`.")
 	runCmd.PersistentFlags().StringVarP(&cfg.RunID, "uuid", "u", "", "Set unique run UUID ID to identify benchmark results.")
 	runCmd.PersistentFlags().StringVar(&cfg.ElasticsearchURL, "elasticsearch-url", "", "Set URL of Elasticsearch instance to export results to.")
 	runCmd.PersistentFlags().StringVar(&cfg.ElasticsearchIndex, "elasticsearch-index", "", "Set Elasticsearch Index to send results to.")
+	runCmd.PersistentFlags().BoolVar(&cfg.ElasticsearchInjectProductHeader,
+		"elasticsearch-iph", true, `Have the Elasticsearch http client inject
+'X-Product-Elastic=ElasticSearch' header into ElasticSearch server responses.`)
 }
 
 // SetLogLevel sets the current log level based on the given Config.
 func SetLogLevel(config *define.Config) {
-	if config.Verbose {
+	if config.Quiet {
+		zerolog.SetGlobalLevel(zerolog.Disabled)
+	} else if config.Verbose {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	} else {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
@@ -56,16 +64,38 @@ func LogVersion() {
 }
 
 // GetExporter takes in the current Config and returns an appropriate Exporterable.
-// Note: since ES is the only exporter defined, this function always
-// creates an ElasticsearchExporter.
 func GetExporter(config *define.Config) define.Exporterable {
-	return &exporters.ElasticsearchExporter{}
+	configuredExporters := []define.Exporterable{}
+	if config.ElasticsearchURL != "" {
+		log.Info().Msg("Creating ElasticsearchExporter.")
+		configuredExporters = append(
+			configuredExporters, &exporters.ElasticsearchExporter{},
+		)
+	}
+	if config.PrintJson {
+		log.Info().Msg("Creating JsonExporter.")
+		configuredExporters = append(
+			configuredExporters, &exporters.JsonExporter{},
+		)
+	}
+
+	if len(configuredExporters) == 0 {
+		log.Warn().Msg("No exporter configured, using dummy exporter.")
+		return &exporters.DummyExporter{}
+	} else if len(configuredExporters) == 1 {
+		return configuredExporters[0]
+	} else {
+		return &exporters.ChainExporter{
+			Exporters: configuredExporters,
+		}
+	}
 }
 
 // CheckError wraps a function call which returns an error.
 // If an error is returned, then `os.Exit(1)` is called
 func CheckError(err error) {
 	if err != nil {
+		fmt.Printf("\nFatal error: %s\n", err)
 		os.Exit(1)
 	}
 }
