@@ -13,6 +13,7 @@ type Config struct {
 	Verbose                          bool
 	Quiet                            bool
 	RunID                            string
+	PrintJson                        bool
 	ElasticsearchURL                 string
 	ElasticsearchIndex               string
 	ElasticsearchSkipVerify          bool
