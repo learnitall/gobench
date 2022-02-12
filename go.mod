@@ -5,6 +5,7 @@ go 1.17
 require (
 	github.com/docker/go-units v0.4.0
 	github.com/elastic/go-elasticsearch/v8 v8.0.0-alpha
+	github.com/google/uuid v1.3.0
 	github.com/rs/zerolog v1.26.1
 	github.com/spf13/cobra v1.3.0
 	github.com/spf13/viper v1.10.1

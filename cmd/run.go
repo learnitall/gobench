@@ -8,6 +8,7 @@ import (
 	"github.com/learnitall/gobench/define"
 	"github.com/learnitall/gobench/exporters"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -32,7 +33,7 @@ func init() {
 	runCmd.PersistentFlags().BoolVarP(&cfg.Verbose, "verbose", "v", false, "Enables verbose debug info.")
 	runCmd.PersistentFlags().BoolVarP(&cfg.Quiet, "quiet", "q", false, "Disable all log output. Overrides the --verbose/-v.")
 	runCmd.PersistentFlags().BoolVarP(&cfg.PrintJson, "print-json", "p", false, "Print benchmark results as json documents. Guaranteed that the printed data is jq-pipeable, i.e. `gobench run --quiet --print-json ... | jq`.")
-	runCmd.PersistentFlags().StringVarP(&cfg.RunID, "uuid", "u", "", "Set unique run UUID ID to identify benchmark results.")
+	runCmd.PersistentFlags().StringVarP(&cfg.RunID, "uuid", "u", uuid.New().String(), "Set unique run UUID ID to identify benchmark results. If one is not given, one will be generated.")
 	runCmd.PersistentFlags().StringVar(&cfg.ElasticsearchURL, "elasticsearch-url", "", "Set URL of Elasticsearch instance to export results to.")
 	runCmd.PersistentFlags().StringVar(&cfg.ElasticsearchIndex, "elasticsearch-index", "", "Set Elasticsearch Index to send results to.")
 	runCmd.PersistentFlags().BoolVar(&cfg.ElasticsearchInjectProductHeader,
