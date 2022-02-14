@@ -1,16 +1,20 @@
 // export.go defines items relevant to the export of benchmark data.
 package define
 
+import "time"
+
 // Metadata is a struct intended to be used by benchmarks to apply
 // common metadata options to their payloads.
 type Metadata struct {
-	RunID string
+	RunID     string
+	Timestamp int64
 }
 
 // GetMetadataPayload constructs a new Metadata struct from the given Config instance.
 func GetMetadataPayload(cfg *Config) Metadata {
 	return Metadata{
-		RunID: cfg.RunID,
+		RunID:     cfg.RunID,
+		Timestamp: time.Now().Unix(),
 	}
 }
 
