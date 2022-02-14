@@ -11,58 +11,73 @@ import (
 	"time"
 
 	"github.com/docker/go-units"
+	"github.com/learnitall/gobench/define"
 	"github.com/rs/zerolog/log"
 )
 
-type DetailsStatType string
+// StatSectionType defines the section a stat was parsed from.
+type StatSectionType string
 
 const (
-	DetailsStatTypeRaw      DetailsStatType = "raw"
-	DetailsStatTypeComputed DetailsStatType = "computed"
+	StatSectionGroup     StatSectionType = "groups"
+	StatSectionStrand    StatSectionType = "strand"
+	StatSectionTX        StatSectionType = "tx"
+	StatSectionFlowopAvg StatSectionType = "flowop_avg"
+	StatSectionTxAvg     StatSectionType = "tx_avg"
+	StatSectionNetstat   StatSectionType = "netstat"
+	StatSectionRun       StatSectionType = "run"
+	StatSectionRunDiff   StatSectionType = "run_diff"
+)
+
+// DetailsFormat tracks whether the given stat was parsed using uperfs 'raw' format (ie when -R is given) or 'computed' format
+type DetailsFormat string
+
+const (
+	DetailsFormatRaw      DetailsFormat = "raw"
+	DetailsFormatComputed DetailsFormat = "computed"
 )
 
 type DetailsStat struct {
-	Name string
-	Type DetailsStatType
+	Name         string
+	Metadata     *define.Metadata
+	SectionType  StatSectionType
+	DetailFormat DetailsFormat
 	// Computed Stats
-	TotalBytes     int64
-	TotalSeconds   float64
-	BytesPerSecond int64
-	OpsPerSecond   int
+	TotalBytes     int64   `json:",omitempty"`
+	TotalSeconds   float64 `json:",omitempty"`
+	BytesPerSecond int64   `json:",omitempty"`
+	OpsPerSecond   int     `json:",omitempty"`
 	// Raw Stats
-	TimestampMS float64
-	Bytes       int
-	Ops         int
+	TimestampMS float64 `json:",omitempty"`
+	Bytes       int     `json:",omitempty"`
+	Ops         int     `json:",omitempty"`
 }
-
-type GroupDetails []DetailsStat
-type StrandDetails []DetailsStat
-type TXStats []DetailsStat
 
 type AveragesStat struct {
-	Name       string
-	Count      int64
-	AvgSeconds float64
-	CpuSeconds float64
-	MaxSeconds float64
-	MinSeconds float64
+	Name        string
+	Metadata    *define.Metadata
+	SectionType StatSectionType
+	Count       int64
+	AvgSeconds  float64
+	CpuSeconds  float64
+	MaxSeconds  float64
+	MinSeconds  float64
 }
-
-type FlowopAverages []AveragesStat
-type TXNAverages []AveragesStat
 
 type NetstatStat struct {
 	Name              string
+	Metadata          *define.Metadata
+	SectionType       StatSectionType
 	OutPktsPerSecond  int64
 	InPktsPerSecond   int64
 	OutBytesPerSecond int64
 	InBytesPerSecond  int64
 }
 
-type NetstatStats []NetstatStat
-
 type RunStat struct {
 	Hostname                 string
+	Metadata                 *define.Metadata
+	SectionType              StatSectionType
 	TimeSeconds              float64
 	DataBytes                int64
 	ThroughputBytesPerSecond int64
@@ -70,7 +85,9 @@ type RunStat struct {
 	Errors                   float64
 }
 
-type RunStatDiff struct {
+type RunDiffStat struct {
+	Metadata                  *define.Metadata
+	SectionType               StatSectionType
 	TimeDeltaPercentage       float64
 	DataDeltaPercentage       float64
 	ThroughputDeltaPercentage float64
@@ -78,35 +95,9 @@ type RunStatDiff struct {
 	ErrorsDeltaPercentage     float64
 }
 
-type RunStats struct {
-	Hosts []RunStat
-	Diff  RunStatDiff
-}
-
-type UperfStdout struct {
-	RunStats       RunStats
-	NetstatStats   NetstatStats
-	TXNAverages    TXNAverages
-	FlowopAverages FlowopAverages
-	TXStats        TXStats
-	StrandDetails  StrandDetails
-	GroupDetails   GroupDetails
-	ExtraOutput    string
-}
-
-// newUperfStdout creates a new UperfStdout struct and initializes all of its maps.
-func newUperfStdout() *UperfStdout {
-	uperfStdout := UperfStdout{}
-	uperfStdout.RunStats = RunStats{}
-	uperfStdout.RunStats.Hosts = []RunStat{}
-	uperfStdout.NetstatStats = []NetstatStat{}
-	uperfStdout.TXNAverages = []AveragesStat{}
-	uperfStdout.FlowopAverages = []AveragesStat{}
-	uperfStdout.TXStats = []DetailsStat{}
-	uperfStdout.StrandDetails = []DetailsStat{}
-	uperfStdout.GroupDetails = []DetailsStat{}
-	return &uperfStdout
-}
+// UperfStdout represents the data parsed from uperf's stdout.
+// Acts as a list of pointers to any struct that should be marshalled and exported.
+type UperfStdout []interface{}
 
 // getParseError constructs a new error instance for when a struct's
 // field cannot be parser correctly.
@@ -179,6 +170,20 @@ func checkPrefix(humanString string, expected string, object string) error {
 	return nil
 }
 
+// addMetadataField adds the given pointer to a define.Metadata object into the
+// given struct pointer, if the struct has a field named 'Metadata'.
+// If the Metadata field exists on the given struct and it can be added, then
+// a debug log is emitted.
+func addMetadataField(targetStruct interface{}, metadata define.Metadata) {
+	metadataField := reflect.ValueOf(targetStruct).Elem().FieldByName("Metadata")
+	if metadataField.CanSet() {
+		metadataField.Set(reflect.ValueOf(&metadata))
+		log.Debug().
+			Interface("stat", targetStruct).
+			Msg("Added metadata to stdout stat.")
+	}
+}
+
 // ParseDetailsStatComputed parses the given line expected to contain a DetailsStat in a computed format.
 // Checks that the line contains 7 fields.
 // Examples:
@@ -218,7 +223,7 @@ func parseDetailsStatComputed(stdoutLine string) (*DetailsStat, error) {
 
 	return &DetailsStat{
 		Name:           fields[0],
-		Type:           DetailsStatTypeComputed,
+		DetailFormat:   DetailsFormatComputed,
 		TotalBytes:     totalBytes,
 		TotalSeconds:   totalTime,
 		BytesPerSecond: bytesPerSecond,
@@ -280,11 +285,11 @@ func parseDetailsStatRaw(stdoutLine string) (*DetailsStat, error) {
 	}
 
 	return &DetailsStat{
-		Name:        name,
-		Type:        DetailsStatTypeRaw,
-		Bytes:       totalBytes,
-		Ops:         totalOps,
-		TimestampMS: timestamp_ms,
+		Name:         name,
+		DetailFormat: DetailsFormatRaw,
+		Bytes:        totalBytes,
+		Ops:          totalOps,
+		TimestampMS:  timestamp_ms,
 	}, nil
 }
 
@@ -448,13 +453,13 @@ func parseRunStat(stdoutLine string) (*RunStat, error) {
 	}, nil
 }
 
-// ParseRunStatDiff parses the given line expected to contain a RunStatDiff.
+// ParseRunDiffStat parses the given line expected to contain a RunDiffStat.
 // Checks the line contains six fields and starts with "Differenc(%)"
 // Examples:
 // - `Difference(%)     -0.00%     11.41%       11.41%       11.41%       0.00%`
 // - `Difference(%)     -0.00%     11.66%       11.66%       11.66%       0.00%`
-func parseRunStatDiff(stdoutLine string) (*RunStatDiff, error) {
-	err := checkPrefix(stdoutLine, "Difference(%)", "RunStatDiff")
+func parseRunDiffStat(stdoutLine string) (*RunDiffStat, error) {
+	err := checkPrefix(stdoutLine, "Difference(%)", "RunDiffStat")
 	if err != nil {
 		return nil, err
 	}
@@ -463,14 +468,14 @@ func parseRunStatDiff(stdoutLine string) (*RunStatDiff, error) {
 	// more easily
 	stdoutLine = strings.ReplaceAll(stdoutLine, "%", "")
 
-	fields, err := checkNumFields(stdoutLine, 6, "RunStatDiff")
+	fields, err := checkNumFields(stdoutLine, 6, "RunDiffStat")
 	if err != nil {
 		return nil, err
 	}
 
-	_onError := func(fieldNum int, name string) (*RunStatDiff, error) {
+	_onError := func(fieldNum int, name string) (*RunDiffStat, error) {
 		return nil,
-			getParseError(stdoutLine, fields[fieldNum], "RunStatDiff", name)
+			getParseError(stdoutLine, fields[fieldNum], "RunDiffStat", name)
 	}
 
 	// These are all floats and can be parsed the same way
@@ -481,7 +486,7 @@ func parseRunStatDiff(stdoutLine string) (*RunStatDiff, error) {
 		"OperationsDeltaPercentage",
 		"ErrorsDeltaPercentage",
 	}
-	runStatDiff := RunStatDiff{}
+	RunDiffStat := RunDiffStat{}
 	var fieldIndex int
 
 	for i, fieldName := range fieldNames {
@@ -491,13 +496,13 @@ func parseRunStatDiff(stdoutLine string) (*RunStatDiff, error) {
 			return _onError(fieldIndex, fieldName)
 		}
 		reflect.
-			ValueOf(&runStatDiff).
+			ValueOf(&RunDiffStat).
 			Elem().
 			FieldByName(fieldName).
 			SetFloat(value)
 	}
 
-	return &runStatDiff, nil
+	return &RunDiffStat, nil
 }
 
 // parseUperfStdoutSection calls the given callback function on each line
@@ -530,9 +535,8 @@ func parseUperfStdoutSection(stdoutLines []string, callback func(string) error) 
 	}
 }
 
-// parseUperfStdoutDetailsSection parses a section containing DetailsStat,
-// placing the result into the given UperfStdout struct under the given Slice.
-func parseUperfStdoutDetailsSection(stdoutLines []string, resultStruct *UperfStdout, targetSlice string) ([]string, error) {
+// parseUperfStdoutDetailsSection parses a section containing DetailsStat.
+func parseUperfStdoutDetailsSection(stdoutLines []string, sectionType StatSectionType, result *UperfStdout) ([]string, error) {
 	return parseUperfStdoutSection(
 		stdoutLines,
 		func(nextLine string) error {
@@ -540,21 +544,15 @@ func parseUperfStdoutDetailsSection(stdoutLines []string, resultStruct *UperfStd
 			if err != nil {
 				return err
 			}
-			resultStructElem := reflect.ValueOf(resultStruct).Elem()
-			targetSliceValue := resultStructElem.FieldByName(targetSlice)
-			targetSliceValueNew := reflect.Append(
-				targetSliceValue,
-				reflect.ValueOf(*detailsStat),
-			)
-			targetSliceValue.Set(targetSliceValueNew)
+			detailsStat.SectionType = sectionType
+			*result = append(*result, detailsStat)
 			return nil
 		},
 	)
 }
 
-// parseUperfStdoutAveragesSection parses a section containing AveragesStat,
-// placing the result into the given UperfStdout struct under the given map.
-func parseUperfStdoutAveragesSection(stdoutLines []string, resultStruct *UperfStdout, targetSlice string) ([]string, error) {
+// parseUperfStdoutAveragesSection parses a section containing AveragesStat.
+func parseUperfStdoutAveragesSection(stdoutLines []string, sectionType StatSectionType, result *UperfStdout) ([]string, error) {
 	return parseUperfStdoutSection(
 		stdoutLines,
 		func(nextLine string) error {
@@ -562,13 +560,8 @@ func parseUperfStdoutAveragesSection(stdoutLines []string, resultStruct *UperfSt
 			if err != nil {
 				return err
 			}
-			averagesStatElem := reflect.ValueOf(resultStruct).Elem()
-			targetSliceValue := averagesStatElem.FieldByName(targetSlice)
-			targetSliceValueNew := reflect.Append(
-				targetSliceValue,
-				reflect.ValueOf(*averagesStat),
-			)
-			targetSliceValue.Set(targetSliceValueNew)
+			averagesStat.SectionType = sectionType
+			*result = append(*result, averagesStat)
 			return nil
 		},
 	)
@@ -576,7 +569,7 @@ func parseUperfStdoutAveragesSection(stdoutLines []string, resultStruct *UperfSt
 
 // parseUperfStdoutNetstatSection parses a section containing NetstatStat,
 // placing the results into the given UperfStdout struct under the `NetstatStats` map.
-func parseUperfStdoutNetstatSection(stdoutLines []string, resultStruct *UperfStdout) ([]string, error) {
+func parseUperfStdoutNetstatSection(stdoutLines []string, result *UperfStdout) ([]string, error) {
 	return parseUperfStdoutSection(
 		stdoutLines,
 		func(nextLine string) error {
@@ -587,15 +580,16 @@ func parseUperfStdoutNetstatSection(stdoutLines []string, resultStruct *UperfStd
 			if err != nil {
 				return err
 			}
-			resultStruct.NetstatStats = append(resultStruct.NetstatStats, *netstatStat)
+			netstatStat.SectionType = StatSectionNetstat
+			*result = append(*result, netstatStat)
 			return nil
 		},
 	)
 }
 
 // parseUperfStdoutRunStatsSection parses a section containing RunStats,
-// placing the results into the given UperfStdout struct under the `RunStats` map.
-func parseUperfStdoutRunStatsSection(stdoutLines []string, resultStruct *UperfStdout) ([]string, error) {
+// placing the results into the given UperfStdout.
+func parseUperfStdoutRunStatsSection(stdoutLines []string, result *UperfStdout) ([]string, error) {
 	return parseUperfStdoutSection(
 		stdoutLines,
 		func(nextLine string) error {
@@ -603,24 +597,26 @@ func parseUperfStdoutRunStatsSection(stdoutLines []string, resultStruct *UperfSt
 				return nil
 			}
 			if strings.HasPrefix(nextLine, "Difference") {
-				runStatsDiff, err := parseRunStatDiff(nextLine)
+				runStatsDiff, err := parseRunDiffStat(nextLine)
 				if err != nil {
 					return err
 				}
-				resultStruct.RunStats.Diff = *runStatsDiff
+				runStatsDiff.SectionType = StatSectionRunDiff
+				*result = append(*result, runStatsDiff)
 				return nil
 			}
 			runStat, err := parseRunStat(nextLine)
 			if err != nil {
 				return err
 			}
-			resultStruct.RunStats.Hosts = append(resultStruct.RunStats.Hosts, *runStat)
+			runStat.SectionType = StatSectionRun
+			*result = append(*result, runStat)
 			return nil
 		},
 	)
 }
 
-func parseUperfStdout(stdoutLines []string, resultStruct *UperfStdout) error {
+func parseUperfStdout(stdoutLines []string, result *UperfStdout) error {
 	if len(stdoutLines) == 0 {
 		return nil
 	}
@@ -635,7 +631,7 @@ func parseUperfStdout(stdoutLines []string, resultStruct *UperfStdout) error {
 	if strings.HasPrefix(currentLine, "Group Details") {
 		log.Debug().Str("current_line", currentLine).Msg("Parsing Group Details section")
 		stdoutLines, err = parseUperfStdoutDetailsSection(
-			stdoutLines, resultStruct, "GroupDetails",
+			stdoutLines, StatSectionGroup, result,
 		)
 		if err != nil {
 			return err
@@ -643,7 +639,7 @@ func parseUperfStdout(stdoutLines []string, resultStruct *UperfStdout) error {
 	} else if strings.HasPrefix(currentLine, "Strand Details") {
 		log.Debug().Str("current_line", currentLine).Msg("Parsing Strand Details section")
 		stdoutLines, err = parseUperfStdoutDetailsSection(
-			stdoutLines, resultStruct, "StrandDetails",
+			stdoutLines, StatSectionStrand, result,
 		)
 		if err != nil {
 			return err
@@ -651,7 +647,7 @@ func parseUperfStdout(stdoutLines []string, resultStruct *UperfStdout) error {
 	} else if strings.HasPrefix(strings.ReplaceAll(currentLine, " ", ""), "TxnCount") {
 		log.Debug().Str("current_line", currentLine).Msg("Parsing Txn Averages section")
 		stdoutLines, err = parseUperfStdoutAveragesSection(
-			stdoutLines, resultStruct, "TXNAverages",
+			stdoutLines, StatSectionTxAvg, result,
 		)
 		if err != nil {
 			return err
@@ -659,7 +655,7 @@ func parseUperfStdout(stdoutLines []string, resultStruct *UperfStdout) error {
 	} else if strings.HasPrefix(currentLine, "Flowop") {
 		log.Debug().Str("current_line", currentLine).Msg("Parsing Flowop Averages section")
 		stdoutLines, err = parseUperfStdoutAveragesSection(
-			stdoutLines, resultStruct, "FlowopAverages",
+			stdoutLines, StatSectionFlowopAvg, result,
 		)
 		if err != nil {
 			return err
@@ -667,7 +663,7 @@ func parseUperfStdout(stdoutLines []string, resultStruct *UperfStdout) error {
 	} else if strings.HasPrefix(currentLine, "Netstat statistics") {
 		log.Debug().Str("current_line", currentLine).Msg("Parsing Netstat Statistics section")
 		stdoutLines, err = parseUperfStdoutNetstatSection(
-			stdoutLines, resultStruct,
+			stdoutLines, result,
 		)
 		if err != nil {
 			return err
@@ -675,7 +671,7 @@ func parseUperfStdout(stdoutLines []string, resultStruct *UperfStdout) error {
 	} else if strings.HasPrefix(currentLine, "Run Statistics") {
 		log.Debug().Str("current_line", currentLine).Msg("Parsing Run Statistics section")
 		stdoutLines, err = parseUperfStdoutRunStatsSection(
-			stdoutLines, resultStruct,
+			stdoutLines, result,
 		)
 		if err != nil {
 			return err
@@ -683,36 +679,37 @@ func parseUperfStdout(stdoutLines []string, resultStruct *UperfStdout) error {
 	} else if strings.HasPrefix(currentLine, "Txn") || strings.HasPrefix(currentLine, "Total") {
 		log.Debug().Str("current_line", currentLine).Msg("Parsing Txn detail (computed)")
 		detailsStat, err = parseDetailsStatComputed(currentLine)
+		detailsStat.SectionType = StatSectionTX
 		if err != nil {
 			return err
 		}
-		resultStruct.TXStats = append(resultStruct.TXStats, *detailsStat)
+		*result = append(*result, detailsStat)
 		stdoutLines = stdoutLines[1:]
 	} else if strings.HasPrefix(currentLine, "timestamp_ms") {
 		log.Debug().Str("current_line", currentLine).Msg("Parsing Txn detail (raw)")
 		detailsStat, err = parseDetailsStatRaw(currentLine)
+		detailsStat.SectionType = StatSectionTX
 		if err != nil {
 			return err
 		}
-		resultStruct.TXStats = append(resultStruct.TXStats, *detailsStat)
+		*result = append(*result, detailsStat)
 		stdoutLines = stdoutLines[1:]
 	} else {
 		log.Debug().Str("current_line", currentLine).Msg("Skipping line")
-		resultStruct.ExtraOutput = resultStruct.ExtraOutput + currentLine
 		stdoutLines = stdoutLines[1:]
 	}
 
-	return parseUperfStdout(stdoutLines, resultStruct)
+	return parseUperfStdout(stdoutLines, result)
 }
 
 func ParseUperfStdout(uperfStdout string) (*UperfStdout, error) {
 	var (
-		lines        []string     = strings.Split(uperfStdout, "\n")
-		resultStruct *UperfStdout = newUperfStdout()
+		lines  []string     = strings.Split(uperfStdout, "\n")
+		result *UperfStdout = &UperfStdout{}
 	)
-	err := parseUperfStdout(lines, resultStruct)
+	err := parseUperfStdout(lines, result)
 	if err != nil {
 		return nil, err
 	}
-	return resultStruct, err
+	return result, err
 }

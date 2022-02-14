@@ -15,15 +15,14 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// UperfResultPayload holds results of the uperf benchmark, ready to be marshalled and exported.
-type UperfResultPayload struct {
-	Result    UperfStdout
-	Profile   Profile
+// UperfRunInfoPayload holds information to help describe the run of a uperf benchmark.
+type UperfRunInfoPayload struct {
+	StdoutRaw string
+	Profile   *Profile
 	Cmd       []string
-	Metadata  define.Metadata
+	Metadata  *define.Metadata
 	StartTime int64
 	EndTime   int64
-	Timestamp int64
 }
 
 // UperfBenchmark helps facilitate running Uperf.
@@ -111,7 +110,7 @@ func (u *UperfBenchmark) Run(exporter define.Exporterable) error {
 	// Replace \r with \n so regardless of which one we get we can parse
 	stdout = strings.ReplaceAll(stdout, "\r", "\n")
 
-	stdoutResult, err := ParseUperfStdout(stdout)
+	payloadResults, err := ParseUperfStdout(stdout)
 	if err != nil {
 		log.Fatal().
 			Str("stdout", stdout).
@@ -120,37 +119,48 @@ func (u *UperfBenchmark) Run(exporter define.Exporterable) error {
 		return err
 	}
 
-	payload := UperfResultPayload{
-		Result:    *stdoutResult,
-		Profile:   u.Profile,
+	runInfoPayload := &UperfRunInfoPayload{
+		StdoutRaw: stdout,
+		Profile:   &u.Profile,
 		Cmd:       u.Cmd,
-		Metadata:  u.Metadata,
+		Metadata:  &u.Metadata,
 		StartTime: start,
 		EndTime:   end,
-		Timestamp: time.Now().Unix(),
 	}
-	log.Info().
-		Msg("Parsed stdout and prepared payload, marshalling.")
+	*payloadResults = append(*payloadResults, runInfoPayload)
 
-	marshalled, err := exporter.Marshal(payload)
-	if err != nil {
-		log.Fatal().
-			Err(err).
-			Msg("Unable to marshal uperf result payload.")
-		return err
-	}
 	log.Info().
-		Bytes("marshalled_stdout", marshalled).
-		Msg("Marshalling successful, exporting.")
+		Msg("Parsed stdout and prepared payload documents, marshalling.")
 
-	err = exporter.Export(marshalled)
-	if err != nil {
-		log.Fatal().
-			Err(err).
-			Msg("Unexpected error while exporting marshalled payload.")
-		return err
+	for _, payload := range *payloadResults {
+		log.Debug().
+			Interface("stat", payload).
+			Msg("Looking at uperf stdout stat.")
+
+		addMetadataField(payload, u.Metadata)
+
+		marshalled, err := exporter.Marshal(payload)
+		if err != nil {
+			log.Fatal().
+				Err(err).
+				Msg("Unable to marshal uperf stdout stat.")
+			return err
+		}
+		log.Debug().
+			Bytes("marshalled_stat", marshalled).
+			Msg("Marshalling successful, exporting.")
+
+		err = exporter.Export(marshalled)
+		if err != nil {
+			log.Fatal().
+				Err(err).
+				Msg("Unexpected error while exporting marshalled payload.")
+			return err
+		}
+		log.Debug().
+			Bytes("marshalled_stat", marshalled).
+			Msg("Successfully sent payload to exporter.")
 	}
-	log.Info().Msg("Successfully sent payload to exporter.")
 
 	return nil
 }
