@@ -237,17 +237,18 @@ func TestElasticsearchExporterFailsGracefullyOnExportFail(t *testing.T) {
 		)
 	}
 
-	err = es.Teardown()
-	if err != nil {
-		t.Errorf(
-			"Received error while calling Teardown: %s", err,
-		)
-	}
-
 	stats := (*es.bulkIndexer).Stats()
 	if stats.NumIndexed != 0 || stats.NumAdded != 1 {
 		t.Errorf(
 			"Expected bulk indexer stats to show 1 document added and failed to indexed, instead got: %+v", stats,
 		)
 	}
+
+	err = es.Teardown()
+	if err == nil {
+		t.Error(
+			"Expected error while calling Teardown, instead got nil",
+		)
+	}
+
 }
