@@ -50,9 +50,14 @@ type Group struct {
 }
 
 type Transaction struct {
-	DurationSeconds int
-	Iterations      int
-	FlowOps         []flowOpXML
+	DurationSeconds *int `json:",omitempty"`
+	Iterations      *int `json:",omitempty"`
+	FlowOps         []FlowOp
+}
+
+type FlowOp struct {
+	Type    string
+	Options *string `json:",omitempty"`
 }
 
 // PerformEnvSubst finds environment variables defined in the workload xml
@@ -97,8 +102,12 @@ func ParseWorkloadXML(workloadRawBytes []byte) (*Profile, error) {
 		profile            Profile = Profile{}
 		profileXMLInstance profileXML
 		nthreads           int
-		duration           int
-		iterations         int
+		duration           *int
+		iterations         *int
+		group              Group
+		transaction        Transaction
+		flowOp             FlowOp
+		options            *string
 	)
 
 	err = xml.Unmarshal(workloadRawBytes, &profileXMLInstance)
@@ -113,7 +122,7 @@ func ParseWorkloadXML(workloadRawBytes []byte) (*Profile, error) {
 	profile.Groups = []Group{}
 
 	for _, groupXML := range profileXMLInstance.Groups {
-		group := Group{}
+		group = Group{}
 		nthreads, err = strconv.Atoi(groupXML.NThreads)
 		if err != nil {
 			return nil, fmt.Errorf(
@@ -124,8 +133,8 @@ func ParseWorkloadXML(workloadRawBytes []byte) (*Profile, error) {
 		group.NThreads = nthreads
 		group.Transactions = []Transaction{}
 		for _, transactionXML := range groupXML.Transactions {
-			duration = -1
-			iterations = -1
+			duration = nil
+			iterations = nil
 			if len(transactionXML.Duration) > 0 {
 				_duration, err := time.ParseDuration(transactionXML.Duration)
 				if err != nil {
@@ -135,10 +144,12 @@ func ParseWorkloadXML(workloadRawBytes []byte) (*Profile, error) {
 						err,
 					)
 				}
-				duration = int(_duration.Seconds())
+				duration = new(int)
+				*duration = int(_duration.Seconds())
 			}
 			if err == nil && len(transactionXML.Iterations) > 0 {
-				iterations, err = strconv.Atoi(transactionXML.Iterations)
+				iterations = new(int)
+				*iterations, err = strconv.Atoi(transactionXML.Iterations)
 				if err != nil {
 					return nil, fmt.Errorf(
 						"Unable to parse transaction iterations '%s': %s",
@@ -147,14 +158,24 @@ func ParseWorkloadXML(workloadRawBytes []byte) (*Profile, error) {
 					)
 				}
 			}
-			group.Transactions = append(
-				group.Transactions,
-				Transaction{
-					DurationSeconds: duration,
-					Iterations:      iterations,
-					FlowOps:         transactionXML.FlowOps,
-				},
-			)
+			transaction = Transaction{
+				DurationSeconds: duration,
+				Iterations:      iterations,
+				FlowOps:         []FlowOp{},
+			}
+			for _, flowOpXML := range transactionXML.FlowOps {
+				flowOp = FlowOp{Type: flowOpXML.Type}
+				options = nil
+				if len(flowOpXML.Options) > 0 {
+					options = new(string)
+					*options = strings.Join(
+						strings.Fields(flowOpXML.Options), " ",
+					)
+				}
+				flowOp.Options = options
+				transaction.FlowOps = append(transaction.FlowOps, flowOp)
+			}
+			group.Transactions = append(group.Transactions, transaction)
 		}
 		profile.Groups = append(profile.Groups, group)
 	}

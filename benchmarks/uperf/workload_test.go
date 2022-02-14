@@ -6,7 +6,6 @@ package uperf
 import (
 	"encoding/json"
 	"os"
-	"reflect"
 	"testing"
 )
 
@@ -35,7 +34,8 @@ var WORKLOAD_XML_VOIPRX string = `<?xml version="1.0"?>
 
   <group nthreads="200">
       <transaction iterations="1">
-        <flowop type="connect" options="remotehost=$h2 protocol=udp"/>
+        <flowop type="connect" options="remotehost=$h2 
+		protocol=udp"/>
       </transaction>
       <transaction duration="120s">
             <flowop type="read" options="size=64"/>
@@ -54,7 +54,6 @@ var WORKLOAD_JSON_VOIPRX = `{
 			"transactions": [
 				{
 					"iterations": 1,
-					"durationSeconds": -1,
 					"flowops": [
 						{
 						    "type": "connect",
@@ -64,7 +63,6 @@ var WORKLOAD_JSON_VOIPRX = `{
 				},
 				{
 					"durationSeconds": 120,
-					"iterations": -1,
 					"flowops": [
 						{
 							"type": "read",
@@ -74,7 +72,6 @@ var WORKLOAD_JSON_VOIPRX = `{
 				},
 				{
 					"iterations": 1,
-					"durationSeconds": -1,
 					"flowops": [
 						{
 							"type": "disconnect"
@@ -88,7 +85,6 @@ var WORKLOAD_JSON_VOIPRX = `{
 			"transactions": [
 				{
 					"iterations": 1,
-					"durationSeconds": -1,
 					"flowops": [
 						{
 							"type": "connect",
@@ -98,7 +94,6 @@ var WORKLOAD_JSON_VOIPRX = `{
 				},
 				{
 					"durationSeconds": 120,
-					"iterations": -1,
 					"flowops": [
 						{
 							"type": "read",
@@ -108,7 +103,6 @@ var WORKLOAD_JSON_VOIPRX = `{
 				},
 				{
 					"iterations": 1,
-					"durationSeconds": -1,
 					"flowops": [
 						{
 							"type": "disconnect"
@@ -135,7 +129,8 @@ var WORKLOAD_XML_VOIPRX_ENV_SUBST string = `<?xml version="1.0"?>
 
   <group nthreads="200">
       <transaction iterations="1">
-        <flowop type="connect" options="remotehost=myhost.custom protocol=udp"/>
+        <flowop type="connect" options="remotehost=myhost.custom 
+		protocol=udp"/>
       </transaction>
       <transaction duration="120s">
             <flowop type="read" options="size=64"/>
@@ -170,17 +165,15 @@ var WORKLOAD_JSON_IPERF string = `{
 			"transactions": [
 				{
 					"iterations": 1,
-					"durationSeconds": -1,
 					"flowops": [
 						{
-							"type": "connect",
-							"options": "remotehost=127.0.0.1 protocol=tcp wndsz=50k  tcp_nodelay"
+						    "type": "connect",
+						    "options": "remotehost=127.0.0.1 protocol=tcp wndsz=50k tcp_nodelay"
 						}
 					]
 				},
 				{
 					"durationSeconds": 30,
-					"iterations": -1,
 					"flowops": [
 						{
 							"type": "write",
@@ -190,7 +183,6 @@ var WORKLOAD_JSON_IPERF string = `{
 				},
 				{
 					"iterations": 1,
-					"durationSeconds": -1,
 					"flowops": [
 						{
 							"type": "disconnect"
@@ -263,10 +255,22 @@ func TestParseWorkloadXML(t *testing.T) {
 		}
 		unmarshalled_xml := *_unmarshalled_xml
 
-		if !reflect.DeepEqual(unmarshalled_json, unmarshalled_xml) {
+		// To make the equal comparison, remarshal into equal json strings
+		// This sets the indentation formatting to be on equal ground and takes
+		// care of pointer defreference.
+		remarshalled_xml, err := json.Marshal(unmarshalled_xml)
+		if err != nil {
+			t.Errorf("Error while trying to re-marshal workload xml: %s", err)
+		}
+		remarshalled_json, err := json.Marshal(unmarshalled_json)
+		if err != nil {
+			t.Errorf("Error while trying to re-marshal workload json: %s", err)
+		}
+
+		if string(remarshalled_xml) != string(remarshalled_json) {
 			t.Errorf(
 				"expected json is not equal to parsed XML:\n json:\n%+v\n xml:\n%+v\n",
-				unmarshalled_json, unmarshalled_xml,
+				string(remarshalled_json), string(remarshalled_xml),
 			)
 		}
 	}
