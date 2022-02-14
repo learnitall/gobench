@@ -5,9 +5,10 @@ import (
 )
 
 // ChainExporter is used to allow for multiple exporters to function through one Expoerterable interface.
+// It's important to initiate Exporters and marshalled appropriately
 type ChainExporter struct {
 	Exporters  []define.Exporterable
-	marshalled [][]byte
+	Marshalled [][]byte
 }
 
 // doLoop loops through each Exporterable the ChainExporter is configured with and passes it to the given function.
@@ -55,6 +56,8 @@ func (ce *ChainExporter) Teardown() error {
 // Rather than returning the results of each marshal, they are saved in a slice within the ChainExporter.
 // An empty byte array is returned.
 // The Exporter function will use these results while exporting payloads.
+// This function is ripe for a runtime panic if the `marshalled` field is not
+// preallocated to match the length of the number of configured exporters.
 func (ce *ChainExporter) Marshal(payload interface{}) ([]byte, error) {
 	err := ce.doLoop(
 		func(e define.Exporterable, i int) error {
@@ -62,7 +65,7 @@ func (ce *ChainExporter) Marshal(payload interface{}) ([]byte, error) {
 			if _err != nil {
 				return _err
 			}
-			ce.marshalled[i] = marshalled
+			ce.Marshalled[i] = marshalled
 			return nil
 		},
 	)
@@ -75,7 +78,7 @@ func (ce *ChainExporter) Marshal(payload interface{}) ([]byte, error) {
 func (ce *ChainExporter) Export(payload []byte) error {
 	return ce.doLoop(
 		func(e define.Exporterable, i int) error {
-			return e.Export(ce.marshalled[i])
+			return e.Export(ce.Marshalled[i])
 		},
 	)
 }
