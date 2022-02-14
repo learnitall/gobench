@@ -255,6 +255,20 @@ func (es *ElasticsearchExporter) Teardown() error {
 			Msg("Unexpected error while closing out bulk indexer.")
 		return err
 	}
+	stats := (*es.bulkIndexer).Stats()
+	if stats.NumFailed > 0 {
+		err := errors.New(
+			"one or more documents were not exported successfully",
+		)
+		log.Error().
+			Err(err).
+			Uint64("num_failed", stats.NumFailed).
+			Uint64("num_success", stats.NumCreated).
+			Uint64("num_total", stats.NumCreated).
+			Interface("stats_raw", stats).
+			Msg("Unable to teardown Elasticsearch Exporter.")
+		return err
+	}
 	log.Info().
 		Msg("Teardown for ElasticsearchExporter successful!")
 	return nil
