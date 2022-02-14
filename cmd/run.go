@@ -32,7 +32,7 @@ func init() {
 	cfg := define.GetConfig()
 	runCmd.PersistentFlags().BoolVarP(&cfg.Verbose, "verbose", "v", false, "Enables verbose debug info.")
 	runCmd.PersistentFlags().BoolVarP(&cfg.Quiet, "quiet", "q", false, "Disable all log output. Overrides the --verbose/-v.")
-	runCmd.PersistentFlags().BoolVarP(&cfg.PrintJson, "print-json", "p", false, "Print benchmark results as json documents. Guaranteed that the printed data is jq-pipeable, i.e. `gobench run --quiet --print-json ... | jq`.")
+	runCmd.PersistentFlags().BoolVarP(&cfg.PrintJson, "print-json", "p", false, "Print benchmark results as json documents. Guaranteed that the printed data is jq-pipeable, i.e. gobench run --quiet --print-json ... | jq.")
 	runCmd.PersistentFlags().StringVarP(&cfg.RunID, "uuid", "u", uuid.New().String(), "Set unique run UUID ID to identify benchmark results. If one is not given, one will be generated.")
 	runCmd.PersistentFlags().StringVar(&cfg.ElasticsearchURL, "elasticsearch-url", "", "Set URL of Elasticsearch instance to export results to.")
 	runCmd.PersistentFlags().StringVar(&cfg.ElasticsearchIndex, "elasticsearch-index", "", "Set Elasticsearch Index to send results to.")
@@ -87,7 +87,8 @@ func GetExporter(config *define.Config) define.Exporterable {
 		return configuredExporters[0]
 	} else {
 		return &exporters.ChainExporter{
-			Exporters: configuredExporters,
+			Exporters:  configuredExporters,
+			Marshalled: make([][]byte, len(configuredExporters)),
 		}
 	}
 }
@@ -107,6 +108,8 @@ func RunBenchmark(bench define.Benchmarkable) {
 		cfg      *define.Config = define.GetConfig()
 		exporter define.Exporterable
 	)
+	SetLogLevel(cfg)
+	LogVersion()
 	exporter = GetExporter(cfg)
 
 	CheckError(exporter.Setup(cfg))
